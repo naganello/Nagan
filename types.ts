@@ -56,7 +56,7 @@ export interface AIPlanResponse {
   schedule: AIPlanDay[];
 }
 
-// --- New Interfaces ---
+// --- Challenges & Nutrition ---
 
 export interface Challenge {
   id: string;
@@ -82,4 +82,21 @@ export interface Meal {
 export interface DailyNutrition {
   date: string;
   meals: Meal[];
+}
+
+// --- User Management ---
+
+export interface UserProfile {
+  age?: number;
+  weight?: number; // kg
+  height?: number; // cm
+  gender?: 'M' | 'F' | 'Other';
+}
+
+export interface User {
+  id: string;
+  username: string; // usato per il login
+  password?: string; // simulazione auth
+  name: string;
+  profile: UserProfile;
 }

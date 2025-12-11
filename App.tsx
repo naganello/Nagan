@@ -1,23 +1,33 @@
-import React, { useState } from 'react';
-import { LayoutDashboard, PlusCircle, Bot, Utensils, Trophy } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LayoutDashboard, PlusCircle, Bot, Utensils, Trophy, User as UserIcon } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import WorkoutLogger from './components/WorkoutLogger';
 import AIPlanner from './components/AIPlanner';
 import NutritionTracker from './components/NutritionTracker';
 import ChallengeTracker from './components/ChallengeTracker';
-import { Workout, Meal, Challenge } from './types';
+import Auth from './components/Auth';
+import Profile from './components/Profile';
+import { Workout, Meal, Challenge, User } from './types';
 
-// Hook for local storage
+// Hook for local storage with support for dynamic keys
 function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T) => void] {
-  const [storedValue, setStoredValue] = useState<T>(() => {
+  // Use a state to force re-render when key changes
+  const [storedValue, setStoredValue] = useState<T>(initialValue);
+
+  // Initialize/Read whenever the key changes
+  useEffect(() => {
     try {
       const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
+      if (item) {
+        setStoredValue(JSON.parse(item));
+      } else {
+        setStoredValue(initialValue);
+      }
     } catch (error) {
       console.error(error);
-      return initialValue;
+      setStoredValue(initialValue);
     }
-  });
+  }, [key]);
 
   const setValue = (value: T) => {
     try {
@@ -32,15 +42,24 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T) => voi
   return [storedValue, setValue];
 }
 
-const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'log' | 'ai' | 'nutrition' | 'challenges'>('dashboard');
-  
-  // Persistence
-  const [workouts, setWorkouts] = useLocalStorage<Workout[]>('fitgenius_workouts', []);
-  const [meals, setMeals] = useLocalStorage<Meal[]>('fitgenius_meals', []);
-  const [challenges, setChallenges] = useLocalStorage<Challenge[]>('fitgenius_challenges', []);
+interface AuthenticatedAppProps {
+  user: User;
+  onLogout: () => void;
+  onUpdateUser: (u: User) => void;
+}
 
-  // Handlers
+const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout, onUpdateUser }) => {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'log' | 'ai' | 'nutrition' | 'challenges' | 'profile'>('dashboard');
+  
+  // Dynamic Keys based on User ID to ensure data isolation
+  const workoutKey = `fitgenius_workouts_${user.id}`;
+  const mealKey = `fitgenius_meals_${user.id}`;
+  const challengeKey = `fitgenius_challenges_${user.id}`;
+
+  const [workouts, setWorkouts] = useLocalStorage<Workout[]>(workoutKey, []);
+  const [meals, setMeals] = useLocalStorage<Meal[]>(mealKey, []);
+  const [challenges, setChallenges] = useLocalStorage<Challenge[]>(challengeKey, []);
+
   const handleSaveWorkout = (newWorkout: Workout) => {
     setWorkouts([...workouts, newWorkout]);
     setActiveTab('dashboard');
@@ -91,18 +110,26 @@ const App: React.FC = () => {
             onDeleteChallenge={handleDeleteChallenge}
           />
         );
+      case 'profile':
+        return <Profile user={user} onUpdateUser={onUpdateUser} onLogout={onLogout} />;
       default:
         return <Dashboard workouts={workouts} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-dark text-gray-100 font-sans selection:bg-primary selection:text-white">
+    <div className="min-h-screen bg-dark text-gray-100 font-sans selection:bg-primary selection:text-white pb-20">
       {/* Header */}
-      <header className="p-4 sticky top-0 bg-dark/80 backdrop-blur-md z-10 border-b border-gray-800">
+      <header className="px-4 py-3 sticky top-0 bg-dark/80 backdrop-blur-md z-10 border-b border-gray-800 flex justify-between items-center">
         <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-emerald-300 bg-clip-text text-transparent">
           FitGenius AI
         </h1>
+        <button 
+          onClick={() => setActiveTab('profile')}
+          className={`p-2 rounded-full transition-all ${activeTab === 'profile' ? 'bg-primary/20 text-primary' : 'hover:bg-gray-800 text-gray-400'}`}
+        >
+          <UserIcon size={20} />
+        </button>
       </header>
 
       {/* Main Content Area */}
@@ -111,50 +138,91 @@ const App: React.FC = () => {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur-md border-t border-gray-800 z-50">
-        <div className="container mx-auto max-w-2xl flex justify-between px-6 py-2">
-          <button 
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'dashboard' ? 'text-primary scale-110' : 'text-gray-500 hover:text-gray-300'}`}
-          >
-            <LayoutDashboard size={22} strokeWidth={activeTab === 'dashboard' ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">Home</span>
-          </button>
+      {activeTab !== 'profile' && (
+        <nav className="fixed bottom-0 left-0 right-0 bg-dark/95 backdrop-blur-md border-t border-gray-800 z-50">
+          <div className="container mx-auto max-w-2xl flex justify-between px-6 py-2">
+            <button 
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'dashboard' ? 'text-primary scale-110' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              <LayoutDashboard size={22} strokeWidth={activeTab === 'dashboard' ? 2.5 : 2} />
+              <span className="text-[10px] font-medium">Home</span>
+            </button>
 
-          <button 
-            onClick={() => setActiveTab('log')}
-            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'log' ? 'text-primary scale-110' : 'text-gray-500 hover:text-gray-300'}`}
-          >
-            <PlusCircle size={22} strokeWidth={activeTab === 'log' ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">Log</span>
-          </button>
+            <button 
+              onClick={() => setActiveTab('log')}
+              className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'log' ? 'text-primary scale-110' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              <PlusCircle size={22} strokeWidth={activeTab === 'log' ? 2.5 : 2} />
+              <span className="text-[10px] font-medium">Log</span>
+            </button>
 
-          <button 
-            onClick={() => setActiveTab('ai')}
-            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'ai' ? 'text-secondary scale-110' : 'text-gray-500 hover:text-gray-300'}`}
-          >
-            <Bot size={22} strokeWidth={activeTab === 'ai' ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">Coach</span>
-          </button>
+            <button 
+              onClick={() => setActiveTab('ai')}
+              className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'ai' ? 'text-secondary scale-110' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              <Bot size={22} strokeWidth={activeTab === 'ai' ? 2.5 : 2} />
+              <span className="text-[10px] font-medium">Coach</span>
+            </button>
 
-          <button 
-            onClick={() => setActiveTab('nutrition')}
-            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'nutrition' ? 'text-orange-500 scale-110' : 'text-gray-500 hover:text-gray-300'}`}
-          >
-            <Utensils size={22} strokeWidth={activeTab === 'nutrition' ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">Food</span>
-          </button>
+            <button 
+              onClick={() => setActiveTab('nutrition')}
+              className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'nutrition' ? 'text-orange-500 scale-110' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              <Utensils size={22} strokeWidth={activeTab === 'nutrition' ? 2.5 : 2} />
+              <span className="text-[10px] font-medium">Food</span>
+            </button>
 
-           <button 
-            onClick={() => setActiveTab('challenges')}
-            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'challenges' ? 'text-purple-500 scale-110' : 'text-gray-500 hover:text-gray-300'}`}
-          >
-            <Trophy size={22} strokeWidth={activeTab === 'challenges' ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">Sfide</span>
-          </button>
-        </div>
-      </nav>
+            <button 
+              onClick={() => setActiveTab('challenges')}
+              className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'challenges' ? 'text-purple-500 scale-110' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              <Trophy size={22} strokeWidth={activeTab === 'challenges' ? 2.5 : 2} />
+              <span className="text-[10px] font-medium">Sfide</span>
+            </button>
+          </div>
+        </nav>
+      )}
     </div>
+  );
+};
+
+// Main App Container handling Auth State
+const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const sessionUser = localStorage.getItem('fitgenius_session');
+    if (sessionUser) {
+      setUser(JSON.parse(sessionUser));
+    }
+  }, []);
+
+  const handleLogin = (loggedInUser: User) => {
+    setUser(loggedInUser);
+    localStorage.setItem('fitgenius_session', JSON.stringify(loggedInUser));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('fitgenius_session');
+  };
+
+  const handleUpdateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('fitgenius_session', JSON.stringify(updatedUser));
+  }
+
+  if (!user) {
+    return <Auth onLogin={handleLogin} />;
+  }
+
+  return (
+    <AuthenticatedApp 
+      user={user} 
+      onLogout={handleLogout} 
+      onUpdateUser={handleUpdateUser} 
+    />
   );
 };
 
